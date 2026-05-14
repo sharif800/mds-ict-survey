@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED MODELS (same structure as M365 License Portal for cross-portal queries)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Organization {
+  id              String   @id @default(uuid())
+  name            String
+  institute       String
+  address         String
+  phone           String
+  email           String
+  tenantName      String   @unique
+  instituteNumber String?
+
+  users           User[]
+  ictSurveys      IctSurvey[]
+  m365UserMaps    M365UserDeviceMap[]
+}
+
+model User {
+  id                  String        @id @default(uuid())
+  nationalId          String        @unique
+  fullName            String
+  officeEmail         String        @unique
+  officePhone         String?
+  mobile              String?
+  jobTitle            String?
+  designation         String?
+  role                String        // 'TENANT_IT', 'TENANT_ADMIN', 'CENTRAL_APPROVER', 'CENTRAL_IT'
+  organizationId      String?
+  organization        Organization? @relation(fields: [organizationId], references: [id])
+  password            String
+
+  isActive            Boolean       @default(true)
+  mustChangePassword  Boolean       @default(false)
+  passwordExpiresAt   DateTime?
+  authProvider        String        @default("CREDENTIALS")
+  createdAt           DateTime      @default(now())
+  createdById         String?
+
+  surveysSubmitted    IctSurvey[]   @relation("SurveySubmitter")
+  surveysApproved     IctSurvey[]   @relation("SurveyApprover")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ICT SURVEY MODULE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model IctSurvey {
+  id                String            @id @default(uuid())
+  organizationId    String
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  surveyYear        Int
+  quarter           Int?
+  submittedById     String
+  submittedBy       User              @relation("SurveySubmitter", fields: [submittedById], references: [id])
+  approvedById      String?
+  approvedBy        User?             @relation("SurveyApprover", fields: [approvedById], references: [id])
+  status            String            @default("DRAFT")
+  referenceNumber   String            @unique
+  submittedAt       DateTime?
+  approvedAt        DateTime?
+  reviewNotes       String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  hardwareAssets    HardwareAsset[]
+  softwareLicenses  SoftwareLicense[]
+  infoSystems       InformationSystem[]
+  networkAssets     NetworkAsset[]
+  attachments       SurveyAttachment[]
+
+  @@unique([organizationId, surveyYear, quarter])
+}
+
+model HardwareAsset {
+  id                String    @id @default(uuid())
+  surveyId          String
+  survey            IctSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  assetTag          String?
+  serialNumber      String?
+  hostname          String?
+
+  category          String    // DESKTOP, LAPTOP, SERVER, PRINTER, NETWORK_DEVICE, UPS, DISPLAY, OTHER
+  make              String
+  model             String
+
+  processorModel    String?
+  processorCores    Int?
+  ramGb             Int?
+  storageGb         Int?
+  storageType       String?   // HDD, SSD, NVME
+  gpuModel          String?
+  displaySize       Float?
+
+  currentOs         String?
+  win11Compatible   String?   // YES, NO, UNKNOWN
+  tpmVersion        String?
+  secureBootEnabled Boolean?
+
+  purchaseDate      DateTime?
+  warrantyExpiry    DateTime?
+  expectedLifeYears Int?              @default(5)
+  depreciationMethod String?          @default("STRAIGHT_LINE")
+  purchaseCostUsd   Float?
+  currentValueUsd   Float?
+  condition         String?           @default("OPERATIONAL")
+
+  location          String?
+  department        String?
+  assignedToName    String?
+  assignedToEmail   String?
+
+  createdAt         DateTime          @default(now())
+
+  m365Mappings      M365UserDeviceMap[]
+}
+
+model SoftwareLicense {
+  id                String    @id @default(uuid())
+  surveyId          String
+  survey            IctSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  softwareName      String
+  vendor            String?
+  licenseType       String    // PERPETUAL, SUBSCRIPTION, OEM, OPEN_SOURCE, GOVERNMENT
+  licenseKey        String?
+  quantity          Int               @default(1)
+  assignedQty       Int               @default(0)
+  expiryDate        DateTime?
+  annualCostUsd     Float?
+  notes             String?
+
+  createdAt         DateTime          @default(now())
+}
+
+model InformationSystem {
+  id                String    @id @default(uuid())
+  surveyId          String
+  survey            IctSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  systemName        String
+  systemType        String    // ERP, HRMS, CRM, CUSTOM_WEB, DATABASE, EMAIL, COLLABORATION, OTHER
+  vendor            String?
+  version           String?
+  hostingType       String    // ON_PREMISE, CLOUD, HYBRID, SAAS
+  url               String?
+  databaseEngine    String?
+  primaryLanguage   String?
+  userCount         Int?
+  criticality       String?   // CRITICAL, HIGH, MEDIUM, LOW
+  dataClassification String?  // PUBLIC, INTERNAL, CONFIDENTIAL, SECRET
+  backupFrequency   String?   // DAILY, WEEKLY, MONTHLY, NONE
+  lastSecurityAudit DateTime?
+  description       String?
+
+  createdAt         DateTime          @default(now())
+}
+
+model NetworkAsset {
+  id                String    @id @default(uuid())
+  surveyId          String
+  survey            IctSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  assetType         String    // ROUTER, SWITCH, FIREWALL, ACCESS_POINT, LOAD_BALANCER, CABLE_INFRA
+  make              String?
+  model             String?
+  serialNumber      String?
+  ipAddress         String?
+  portCount         Int?
+  bandwidth         String?
+  managedType       String?   // MANAGED, UNMANAGED
+  purchaseDate      DateTime?
+  condition         String?   @default("OPERATIONAL")
+
+  createdAt         DateTime          @default(now())
+}
+
+model SurveyAttachment {
+  id                String    @id @default(uuid())
+  surveyId          String
+  survey            IctSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  category          String    // INVENTORY_SPREADSHEET, APPROVAL_LETTER, PROCUREMENT_PLAN, AUDIT_REPORT, OTHER
+  storedName        String
+  originalName      String
+  mimeType          String
+  sizeBytes         Int
+  uploadedAt        DateTime  @default(now())
+  uploadedById      String
+}
+
+model M365UserDeviceMap {
+  id                String       @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+
+  userEmail         String
+  userName          String?
+  department        String?
+
+  hardwareAssetId   String?
+  hardwareAsset     HardwareAsset? @relation(fields: [hardwareAssetId], references: [id])
+  deviceDescription String?
+
+  m365License       String?     // e.g. "Microsoft 365 E3", "Microsoft 365 Business Basic"
+  assignedDate      DateTime?
+  lastSyncDate      DateTime    @default(now())
+
+  @@unique([organizationId, userEmail, m365License])
+}
