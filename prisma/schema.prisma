@@ -7,10 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SHARED MODELS (same structure as M365 License Portal for cross-portal queries)
-// ═══════════════════════════════════════════════════════════════════════════════
-
 model Organization {
   id              String   @id @default(uuid())
   name            String
@@ -19,9 +15,14 @@ model Organization {
   phone           String
   email           String
   tenantName      String   @unique
-  instituteNumber String?
-
+  instituteNumber String?  // e.g. "2.2" used as section prefix in printed reports
   users           User[]
+  requests        LicenseRequest[]
+  allocations     LicenseAllocation[]
+  cpsGiven        CpsTransaction[] @relation("CpsFromOrg")
+  cpsReceived     CpsTransaction[] @relation("CpsToOrg")
+  
+  // ICT Survey Relations
   ictSurveys      IctSurvey[]
   m365UserMaps    M365UserDeviceMap[]
 }
@@ -38,21 +39,148 @@ model User {
   role                String        // 'TENANT_IT', 'TENANT_ADMIN', 'CENTRAL_APPROVER', 'CENTRAL_IT'
   organizationId      String?
   organization        Organization? @relation(fields: [organizationId], references: [id])
-  password            String
+  password            String        // bcrypt hashed password
 
+  // Security fields
   isActive            Boolean       @default(true)
   mustChangePassword  Boolean       @default(false)
-  passwordExpiresAt   DateTime?
-  authProvider        String        @default("CREDENTIALS")
+  passwordExpiresAt   DateTime?     // null = no expiry; set to +72h on temp password reset
+  authProvider        String        @default("CREDENTIALS") // 'CREDENTIALS' or 'MICROSOFT'
   createdAt           DateTime      @default(now())
-  createdById         String?
+  createdById         String?       // ID of CENTRAL_IT admin who created this account
 
+  // Relations to requests
+  requestsInitiated   LicenseRequest[] @relation("TenantIt")
+  requestsApproved    LicenseRequest[] @relation("TenantAdmin")
+  requestsAuthorized  LicenseRequest[] @relation("CentralApprover")
+  requestsExecuted    LicenseRequest[] @relation("CentralIt")
+
+  // ICT Survey Relations
   surveysSubmitted    IctSurvey[]   @relation("SurveySubmitter")
   surveysApproved     IctSurvey[]   @relation("SurveyApprover")
 }
 
+model LicenseCatalog {
+  sku         String            @id
+  name        String
+  type        String            // 'USER', 'UPGRADE_USER', 'ADD_ON_S', 'ADD_ON_F'
+  unitPrice   Float
+  description String?           // Added for administrative context
+  isActive    Boolean           @default(true) // Added for "Soft Delete" functionality
+  lineItems   RequestLineItem[]
+  allocations LicenseAllocation[]
+  cpsTransactions CpsTransaction[]
+}
+
+model LicenseAllocation {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  skuId           String
+  sku             LicenseCatalog @relation(fields: [skuId], references: [sku])
+  quantity        Int          @default(0)
+  unitQty         Int          @default(12) // Default to 12 as per user's Excel sample
+  lastUpdated     DateTime     @updatedAt
+
+  @@unique([organizationId, skuId])
+}
+
+model LicenseRequest {
+  id                String    @id @default(uuid())
+  formNumber        String    @unique
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  requestDate       DateTime  @default(now())
+  status            String    // 'DRAFT', 'PENDING_ORG_APPROVAL', 'PENDING_MDS_APPROVAL', 'PROVISIONING', 'COMPLETED'
+  attachmentUrl     String?
+
+  // Request-level justification and reference (used in official printed output)
+  justification     String?   // e.g. "Request from ERA due to staff increase..."
+  referenceLetterNo String?   // e.g. "203-AS/164/2026/1"
+
+  tenantItId        String
+  tenantIt          User      @relation("TenantIt", fields: [tenantItId], references: [id])
+
+  tenantAdminId     String?
+  tenantAdmin       User?     @relation("TenantAdmin", fields: [tenantAdminId], references: [id])
+
+  centralApproverId String?
+  centralApprover   User?     @relation("CentralApprover", fields: [centralApproverId], references: [id])
+
+  centralItId       String?
+  centralIt         User?     @relation("CentralIt", fields: [centralItId], references: [id])
+
+  completionDate    DateTime?
+
+  lineItems         RequestLineItem[]
+  attachments       Attachment[]
+}
+
+model RequestLineItem {
+  id               String         @id @default(uuid())
+  requestId        String
+  request          LicenseRequest @relation(fields: [requestId], references: [id])
+  skuId            String
+  sku              LicenseCatalog @relation(fields: [skuId], references: [sku])
+  requestedQty     Int
+  unitPriceAtTime  Float?         // Snapshot of price when request was created
+  justification    String?
+}
+
+model Attachment {
+  id           String         @id @default(uuid())
+  requestId    String
+  request      LicenseRequest @relation(fields: [requestId], references: [id])
+  storedName   String         // UUID-based filename on disk (security: no user input)
+  originalName String         // Original filename shown in UI
+  mimeType     String
+  sizeBytes    Int
+  uploadedAt   DateTime       @default(now())
+  uploadedById String
+}
+
+model SecurityAudit {
+  id              String   @id @default(uuid())
+  event           String   // 'FAILED_LOGIN', 'UNAUTHORIZED_ACCESS', 'RATE_LIMIT', 'MALWARE_BLOCKED'
+  ipAddress       String
+  userId          String?
+  resource        String?  // The URL or ID attempted
+  details         String?  // JSON string or description
+  createdAt       DateTime @default(now())
+}
+
+model CpsRevision {
+  id              String   @id @default(uuid())
+  referenceNumber String   @unique // e.g. "CPS-2026-001"
+  description     String?  // e.g. "Merger of Environment and Energy"
+  effectiveDate   DateTime 
+  status          String   // 'DRAFT', 'COMMITTED'
+  createdAt       DateTime @default(now())
+  committedAt     DateTime?
+  createdBy       String   // User ID
+  
+  transactions    CpsTransaction[]
+}
+
+model CpsTransaction {
+  id              String   @id @default(uuid())
+  revisionId      String
+  revision        CpsRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  
+  fromOrgId       String?       // The org losing the licenses (can be null if new licenses are added via CPS)
+  fromOrg         Organization? @relation("CpsFromOrg", fields: [fromOrgId], references: [id])
+  
+  toOrgId         String        // The org receiving the licenses
+  toOrg           Organization  @relation("CpsToOrg", fields: [toOrgId], references: [id])
+  
+  skuId           String
+  sku             LicenseCatalog @relation(fields: [skuId], references: [sku])
+  
+  quantityTransferred Int
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// ICT SURVEY MODULE
+// ICT SURVEY MODULE (Merged from ICT Portal)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 model IctSurvey {
@@ -199,6 +327,23 @@ model SurveyAttachment {
   uploadedAt        DateTime  @default(now())
   uploadedById      String
 }
+
+model M365UserDeviceMap {
+  id                String       @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+
+  userEmail         String
+  userName          String?
+  department        String?
+
+  hardwareAssetId   String?
+  hardwareAsset     HardwareAsset? @relation(fields: [hardwareAssetId], references: [id])
+  deviceDescription String?
+
+  m365License       String?     // e.g. "Microsoft 365 E3", "Microsoft 365 Business Basic"
+  assignedDate      DateTime?
+  lastSyncDate      DateTime    @default(now())
 
   @@unique([organizationId, userEmail, m365License])
 }
