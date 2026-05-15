@@ -96,6 +96,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link href="/dashboard/win11" className={pathname.startsWith('/dashboard/win11') ? 'active' : ''}>
               <NavIcon type="win11" /> Win11 Readiness
             </Link>
+            <Link href="/dashboard/reports" className={pathname.startsWith('/dashboard/reports') ? 'active' : ''}>
+              <NavIcon type="reports" /> Reports
+            </Link>
           </div>
 
           {isCentral && (
