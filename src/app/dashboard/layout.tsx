@@ -104,8 +104,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {isCentral && (
             <div className="sidebar-nav-section">
               <div className="sidebar-nav-label">National</div>
-              <Link href="/dashboard/national" className={pathname.startsWith('/dashboard/national') ? 'active' : ''}>
+              <Link href="/dashboard/national" className={pathname === '/dashboard/national' ? 'active' : ''}>
                 <NavIcon type="reports" /> National Analytics
+              </Link>
+              <Link href="/dashboard/national/briefing" className={pathname.startsWith('/dashboard/national/briefing') ? 'active' : ''}>
+                <NavIcon type="dashboard" /> Executive Briefing
               </Link>
               <Link href="/dashboard/integrated" className={pathname.startsWith('/dashboard/integrated') ? 'active' : ''}>
                 <NavIcon type="integrate" /> Integrated View

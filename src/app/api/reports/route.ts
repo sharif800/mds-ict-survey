@@ -198,6 +198,58 @@ export async function GET(req: Request) {
       });
     }
 
+    case 'executive_briefing': {
+      const orgs = await prisma.organization.findMany({
+        include: {
+          _count: { select: { users: true } },
+          ictSurveys: {
+            include: {
+              _count: { select: { hardwareAssets: true, softwareLicenses: true, infoSystems: true, networkAssets: true } },
+              hardwareAssets: { select: { purchaseCostUsd: true, win11Compatible: true, purchaseDate: true, expectedLifeYears: true } }
+            }
+          }
+        }
+      });
+
+      const now = new Date();
+      const briefing = orgs.map(org => {
+        const allHardware = org.ictSurveys.flatMap(s => s.hardwareAssets);
+        const totalCost = allHardware.reduce((s, h) => s + (h.purchaseCostUsd || 0), 0);
+        const win11Ready = allHardware.filter(h => h.win11Compatible === 'YES').length;
+        const agingCount = allHardware.filter(h => {
+          if (!h.purchaseDate || !h.expectedLifeYears) return false;
+          const expiry = new Date(h.purchaseDate);
+          expiry.setFullYear(expiry.getFullYear() + h.expectedLifeYears);
+          return now > expiry;
+        }).length;
+
+        return {
+          organization: org.name,
+          tenant: org.tenantName,
+          totalHardware: org.ictSurveys.reduce((s, sur) => s + sur._count.hardwareAssets, 0),
+          totalSoftware: org.ictSurveys.reduce((s, sur) => s + sur._count.softwareLicenses, 0),
+          totalSystems: org.ictSurveys.reduce((s, sur) => s + sur._count.infoSystems, 0),
+          investmentUsd: showCosts ? totalCost : undefined,
+          win11Readiness: allHardware.length > 0 ? Math.round((win11Ready / allHardware.length) * 100) : 0,
+          riskFactor: allHardware.length > 0 ? Math.round(((agingCount + (allHardware.length - win11Ready)) / (allHardware.length * 2)) * 100) : 0,
+        };
+      });
+
+      return NextResponse.json({
+        reportTitle: 'National ICT Executive Briefing',
+        generatedAt: now.toISOString(),
+        generatedBy: user.name,
+        nationalStats: {
+          totalInstitutions: orgs.length,
+          totalHardware: briefing.reduce((s, b) => s + b.totalHardware, 0),
+          totalInvestment: showCosts ? briefing.reduce((s, b) => s + (b.investmentUsd || 0), 0) : undefined,
+          avgReadiness: briefing.length > 0 ? Math.round(briefing.reduce((s, b) => s + b.win11Readiness, 0) / briefing.length) : 0,
+          highRiskInstitutions: briefing.filter(b => b.riskFactor > 60).length,
+        },
+        institutions: briefing
+      });
+    }
+
     default:
       return NextResponse.json({ error: 'Unknown report type' }, { status: 400 });
   }
