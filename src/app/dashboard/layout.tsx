@@ -110,6 +110,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link href="/dashboard/integrated" className={pathname.startsWith('/dashboard/integrated') ? 'active' : ''}>
                 <NavIcon type="integrate" /> Integrated View
               </Link>
+              <Link href="/dashboard/audit" className={pathname.startsWith('/dashboard/audit') ? 'active' : ''}>
+                <NavIcon type="dashboard" /> Audit Logs
+              </Link>
             </div>
           )}
         </nav>

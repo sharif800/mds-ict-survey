@@ -120,6 +120,11 @@ export default function SurveyDetailPage() {
           {role === 'TENANT_IT' && survey.status === 'DRAFT' && (
             <button className="btn btn-primary" onClick={advanceSurvey}>Submit for Approval</button>
           )}
+          {role === 'TENANT_IT' && survey.status === 'DRAFT' && (
+            <Link href={`/dashboard/surveys/${params.id}/import`} className="btn btn-outline">
+              🚀 Bulk Import Hardware
+            </Link>
+          )}
           {role === 'TENANT_ADMIN' && survey.status === 'SUBMITTED' && (
             <button className="btn btn-success" onClick={advanceSurvey}>Approve</button>
           )}

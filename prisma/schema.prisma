@@ -200,22 +200,19 @@ model SurveyAttachment {
   uploadedById      String
 }
 
-model M365UserDeviceMap {
-  id                String       @id @default(uuid())
-  organizationId    String
-  organization      Organization @relation(fields: [organizationId], references: [id])
-
-  userEmail         String
-  userName          String?
-  department        String?
-
-  hardwareAssetId   String?
-  hardwareAsset     HardwareAsset? @relation(fields: [hardwareAssetId], references: [id])
-  deviceDescription String?
-
-  m365License       String?     // e.g. "Microsoft 365 E3", "Microsoft 365 Business Basic"
-  assignedDate      DateTime?
-  lastSyncDate      DateTime    @default(now())
-
   @@unique([organizationId, userEmail, m365License])
+}
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  timestamp       DateTime @default(now())
+  userId          String
+  userName        String
+  userRole        String
+  organizationId  String?
+  action          String   // e.g. "SURVEY_SUBMIT", "ASSET_DELETE", "BULK_IMPORT"
+  entityType      String   // e.g. "IctSurvey", "HardwareAsset"
+  entityId        String?
+  details         String?  // JSON string of changes
+  ipAddress       String?
 }

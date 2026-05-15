@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { recordAudit } from '@/app/api/audit-logs/route';
 
 // GET: Get a single survey with all its children
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -57,6 +58,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       ...(transition.next === 'SUBMITTED' ? { submittedAt: new Date() } : {}),
       ...(transition.next === 'INSTITUTE_APPROVED' ? { approvedById: user.id, approvedAt: new Date() } : {}),
     },
+  });
+
+  // Record Audit Log
+  await recordAudit({
+    userId: user.id,
+    userName: user.name || 'Unknown',
+    userRole: user.role,
+    organizationId: user.organizationId,
+    action: `SURVEY_STATUS_${transition.next}`,
+    entityType: 'IctSurvey',
+    entityId: id,
+    details: { from: survey.status, to: transition.next },
+    req,
   });
 
   return NextResponse.json(updated);
