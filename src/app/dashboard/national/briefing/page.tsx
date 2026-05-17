@@ -91,7 +91,7 @@ export default function ExecutiveBriefingPage() {
         <div className="metric-card red" style={{ padding: '2rem' }}>
           <div className="metric-label" style={{ fontSize: '1rem' }}>High-Risk Entities</div>
           <div className="metric-value" style={{ fontSize: '3.5rem' }}>{nationalStats.highRiskInstitutions}</div>
-          <div className="metric-sub">Institutions with >60% Aging Assets</div>
+          <div className="metric-sub">Institutions with &gt;60% Aging Assets</div>
         </div>
       </div>
 
