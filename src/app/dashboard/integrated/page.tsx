@@ -94,7 +94,7 @@ export default function IntegratedViewPage() {
             <div style={{ height: '280px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={win11Data} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={win11Data} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value" label={({ name, percent = 0 }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {win11Data.map((_: any, i: number) => (
                       <Cell key={i} fill={['#22c55e', '#ef4444', '#64748b'][i % 3]} />
                     ))}

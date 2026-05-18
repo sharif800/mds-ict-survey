@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { 
   ResponsiveContainer, PieChart, Pie, Cell, 
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid
 } from "recharts";
 
 const COLORS = ['#14b8a6', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
